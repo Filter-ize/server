@@ -35,7 +35,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
     //Create new user
     const user = new User.create({
-        naem,
+        name,
         email,
         password
     })

@@ -19,10 +19,11 @@ app.use(express.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(
     cors({
-        origin: ['http://localhost:5173', 'https://filter-ize-app.onrender.com'],
-        credentials: true,
+      origin: ['http://localhost:5173', 'https://filter-ize-app.onrender.com'],
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], // Agrega 'PATCH' y 'OPTIONS' aquí
     })
-)
+  );
 
 app.use('/uploads', express.static(path.join(__dirname, '/uploads')));
 

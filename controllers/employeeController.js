@@ -281,7 +281,7 @@ const deleteDocument = asyncHandler(async (req, res) => {
     }
 
     //Delete document
-    document.remove();
+    document.deleteOne();
     await employee.save();
 
     res.status(200).json({ message: 'Documento eliminado' });

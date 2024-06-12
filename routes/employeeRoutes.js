@@ -6,7 +6,12 @@ const {
     getEmployees, 
     getEmployee, 
     deleteEmployee, 
-    updateEmployee
+    updateEmployee,
+    addDocument,
+    updateDocument,
+    deleteDocument,
+    getDocuments,
+    getDocument
 } = require('../controllers/employeeController.js');
 const { upload } = require('../utils/fileUpload.js');
 
@@ -15,5 +20,11 @@ router.patch('/:id', protect, upload.single('image'), updateEmployee);
 router.get('/', protect, getEmployees);
 router.get('/:id', protect, getEmployee);
 router.delete('/:id', protect, deleteEmployee);
+//Manejo de documentos
+router.route('/:id/documents').post(protect, addDocument);
+router.route('/:employeeId/documents/:documentId').put(protect, updateDocument);
+router.route('/:employeeId/documents/:documentId').delete(protect, deleteDocument);
+router.route('/:id/documents').get(protect, getDocuments);
+router.route('/:employeeId/documents/:documentId').get(protect, getDocument);
 
 module.exports = router;

@@ -9,8 +9,30 @@ const errorHandler = require('./middleWare/errorMiddleware');
 const userRouter = require('./routes/useRoutes.js');
 const employeeRouter = require('./routes/employeeRoutes.js');
 const contactRouter = require('./routes/contactRoutes.js');
+const helmet = require('helmet'); // Importar helmet
 
 const app = express();
+
+// Configurar helmet para encabezados de seguridad
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", 'unsafe-inline', 'https://example.com'],
+      styleSrc: ["'self'", 'unsafe-inline'],
+      imgSrc: ["'self'", 'https://example.com'],
+      fontSrc: ["'self'", 'https://example.com'],
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  },
+  referrerPolicy: {
+    policy: 'strict-origin-when-cross-origin',
+  },
+}));
 
 //Middleware
 app.use(express.json());
@@ -18,12 +40,12 @@ app.use(cookieParser());
 app.use(express.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(
-    cors({
-      origin: ['http://localhost:5173', 'https://filter-ize-app.onrender.com'],
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], // Agrega 'PATCH' y 'OPTIONS' aquí
-    })
-  );
+  cors({
+    origin: ['http://localhost:5173', 'https://filter-ize-app.onrender.com'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  })
+);
 
 app.use('/uploads', express.static(path.join(__dirname, '/uploads')));
 
@@ -34,13 +56,21 @@ app.use('/api/contactus', contactRouter);
 
 //Routes
 app.get('/', (req, res) => {
-    res.send('API is running');
-})
+  res.send('API is running');
+});
 
 //Error Middleware
 app.use(errorHandler);
+
 //Connect to MongoDB
 const PORT = process.env.PORT || 5000;
-mongoose.connect(process.env.MONGO_URI)
-    .then(() => { app.listen(PORT, () => { console.log(`Server is running on port ${PORT}`) }) })
-    .catch((err) => { console.log(err) });
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.log(err);
+  });

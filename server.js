@@ -9,7 +9,9 @@ const errorHandler = require('./middleWare/errorMiddleware');
 const userRouter = require('./routes/useRoutes.js');
 const employeeRouter = require('./routes/employeeRoutes.js');
 const contactRouter = require('./routes/contactRoutes.js');
+const cartRouter = require('./routes/cartRoutes.js');
 const helmet = require('helmet'); // Importar helmet
+const axios = require('axios');
 
 const app = express();
 
@@ -53,6 +55,7 @@ app.use('/uploads', express.static(path.join(__dirname, '/uploads')));
 app.use('/api/users', userRouter);
 app.use('/api/employees', employeeRouter);
 app.use('/api/contactus', contactRouter);
+app.use('/api/cart', cartRouter);
 
 //Routes
 app.get('/', (req, res) => {

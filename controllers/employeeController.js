@@ -2,6 +2,7 @@ const asyncHandler = require('express-async-handler');
 const Employee = require('../models/employeeModel');
 const { fileSizeFormatter } = require('../utils/fileUpload');
 const cloudinary = require('cloudinary').v2;
+const axios = require('axios');
 
 cloudinary.config({
     cloud_name: 'dlsyupxsl',
@@ -122,7 +123,7 @@ const updateEmployee = asyncHandler(async (req, res) => {
         try {
             uploadFile = await cloudinary.uploader.upload(req.file.path, {
                 folder: 'Filterise app',
-                resource_type: 'image',
+                resource_type: 'raw',
             });
         } catch (error) {
             res.status(500);
@@ -163,11 +164,12 @@ const addDocument = asyncHandler(async (req, res) => {
     const { title, specialty, startDate, endDate } = req.body;
     const employee = await Employee.findById(id);
 
-    // If employee doesn't exists
+    // If employee doesn't exist
     if (!employee) {
         res.status(404);
         throw new Error('Empleado no encontrado');
     }
+
     // Match employee to its user
     if (employee.user.toString() !== req.user.id) {
         res.status(401);
@@ -178,17 +180,18 @@ const addDocument = asyncHandler(async (req, res) => {
     let documentData = {
         title,
         specialty,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
+        startDate: new Date(startDate), // No es necesario convertir startDate a Date nuevamente
+        endDate: new Date(endDate), // No es necesario convertir endDate a Date nuevamente
     };
 
+    
     if (req.file) {
         // Save document to cloudinary
         let uploadedDocument;
         try {
             uploadedDocument = await cloudinary.uploader.upload(req.file.path, {
                 folder: 'Filterize app',
-                resource_type: 'image',
+                resource_type: 'raw',
             });
             documentData.fileUrl = uploadedDocument.secure_url;
         } catch (error) {
@@ -196,10 +199,18 @@ const addDocument = asyncHandler(async (req, res) => {
             throw new Error('Error al subir el documento');
         }
     }
-
+    
+    console.log("Document Data:", documentData);
     // Add document to employee's documents
-    employee.documents.push(documentData);
+    const newDocument = employee.documents.create(documentData);
+    employee.documents.push(newDocument);
+
+    // Save the new document manually
+    await newDocument.save();
+
+    // Save the employee
     await employee.save();
+
     res.status(201).json(employee);
 });
 
@@ -234,7 +245,7 @@ const updateDocument = asyncHandler(async (req, res) => {
         try {
             uploadedDocument = await cloudinary.uploader.upload(req.file.path, {
                 folder: 'Filterize app',
-                resource_type: 'auto', // auto will allow for non-image files
+                resource_type: 'raw', // auto will allow for non-image files
             });
             documentData.fileUrl = uploadedDocument.secure_url;
         } catch (error) {
@@ -333,6 +344,32 @@ const getDocument = asyncHandler(async (req, res) => {
     res.status(200).json(document);
 });
 
+const downloadDocument = asyncHandler(async (req, res) => {
+    const { employeeId, documentId } = req.params;
+    const employee = await Employee.findById(employeeId);
+
+    //If employee doesn't exists
+    if (!employee) {
+        res.status(404);
+        throw new Error('Empleado no encontrado');
+    }
+    //Match employee to its user
+    if (employee.user.toString() !== req.user.id) {
+        res.status(401);
+        throw new Error('Usuario no autorizado');
+    }
+    //Find the document
+    const document = employee.documents.id(documentId);
+    if (!document) {
+        res.status(404);
+        throw new Error('Documento no encontrado');
+    }
+
+    //Redirect to the document URL
+    // res.redirect(document.fileUrl);
+    res.status(200).json(document.fileUrl);
+});
+
 module.exports = {
     createEmployee,
     getEmployees,
@@ -343,5 +380,6 @@ module.exports = {
     updateDocument,
     deleteDocument,
     getDocuments,
-    getDocument
+    getDocument,
+    downloadDocument
 };

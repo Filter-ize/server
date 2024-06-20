@@ -15,11 +15,16 @@ const storage = multer.diskStorage({
 
 //Specify file format that can be saved
 const fileFilter = (req, file, cb) => {
-    if (
-        file.mimetype === "image/png" ||
-        file.mimetype === "image/jpg" ||
-        file.mimetype === "image/jpeg"
-    ) {
+    const allowedFileTypes = [
+        "image/png",
+        "image/jpg",
+        "image/jpeg",
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        // Agrega aquí más tipos de archivos si es necesario
+    ];
+    if (allowedFileTypes.includes(file.mimetype)) {
         cb(null, true);
     } else {
         cb(null, false);

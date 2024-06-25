@@ -2,30 +2,166 @@ const asyncHandler = require('express-async-handler');
 const DocumentCart = require('../models/documentsCart.js');
 const Employee = require('../models/employeeModel.js');
 
-const addDocumentsToCart = asyncHandler(async (req, res) => {
-    const { documentPairs } = req.body;
+const createDocumentsCart = asyncHandler(async (req, res) => {
+    const { title, location, type, duration, documentPairs } = req.body;
 
-    let userCart = await DocumentCart.findOne({ user: req.user.id });
-    if (!userCart) {
-        // Si no se encuentra un carrito, crea uno nuevo
-        userCart = new DocumentCart({ user: req.user.id });
+    let userCart = new DocumentCart({
+        user: req.user.id,
+        title,
+        location,
+        type,
+        duration,
+        reached: 0
+    });
+
+    if (documentPairs) {
+        for (let pair of documentPairs) {
+            const employee = await Employee.findById(pair.employeeId);
+            if (!employee) {
+                res.status(404);
+                throw new Error('Empleado no encontrado');
+            }
+
+            const document = employee.documents.id(pair.documentId);
+            if (!document) {
+                res.status(404);
+                throw new Error('Documento no encontrado');
+            }
+
+            userCart.documents.push({
+                employee: pair.employeeId,
+                employeeName: employee.name, // Asegúrate de que 'name' es el campo correcto
+                document: document._id,
+                documentTitle: document.title, // Asegúrate de que 'title' es el campo correcto
+                documentFileUrl: document.fileUrl, // Asegúrate de que 'fileUrl' es el campo correcto
+                documentTotalTime: document.totalTime, // Asegúrate de que 'totalTime' es el campo correcto
+            });
+        }
     }
 
-    for (let pair of documentPairs) {
-        const employee = await Employee.findById(pair.employeeId);
-        if (!employee) {
-            res.status(404);
-            throw new Error('Empleado no encontrado');
-        }
+    await userCart.save();
 
-        const document = employee.documents.id(pair.documentId);
-        if (!document) {
-            res.status(404);
-            throw new Error('Documento no encontrado');
-        }
+    res.status(201).json(userCart);
+});
 
-        // Empuja un objeto que contiene el employeeId y el documentId
-        userCart.documents.push({ employee: pair.employeeId, document: document._id });
+const addDocumentsToCart = asyncHandler(async (req, res) => {
+    const { employeeId, documentId, employeeName, documentTitle, documentFileUrl, documentTotalTime } = req.body;
+
+    let userCart = await DocumentCart.findById(req.params.id);
+
+    // Verificar si el usuario autenticado es el propietario del carrito
+    if (userCart.user.toString() !== req.user.id) {
+        res.status(403);
+        throw new Error('No autorizado');
+    }
+
+    if (!userCart) {
+        res.status(404);
+        throw new Error('Carrito no encontrado');
+    }
+
+    const employee = await Employee.findById(employeeId);
+    if (!employee) {
+        res.status(404);
+        throw new Error('Empleado no encontrado');
+    }
+
+    const document = employee.documents.id(documentId);
+    if (!document) {
+        res.status(404);
+        throw new Error('Documento no encontrado');
+    }
+
+    userCart.documents.push({
+        employee: employeeId,
+        employeeName: employeeName,
+        document: document._id,
+        documentTitle: documentTitle,
+        documentFileUrl: documentFileUrl,
+        documentTotalTime: documentTotalTime,
+    });
+
+    await userCart.save();
+
+    res.status(200).json(userCart);
+});
+
+const removeDocumentFromCart = asyncHandler(async (req, res) => {
+    const { employeeId, documentId } = req.body;
+
+    let userCart = await DocumentCart.findById(req.params.id);
+
+    // Verificar si el usuario autenticado es el propietario del carrito
+    if (userCart.user.toString() !== req.user.id) {
+        res.status(403);
+        throw new Error('No autorizado');
+    }
+
+    if (!userCart) {
+        res.status(404);
+        throw new Error('Carrito no encontrado');
+    }
+
+    const index = userCart.documents.findIndex(doc => doc.employee.toString() === employeeId && doc.document.toString() === documentId);
+
+    if (index === -1) {
+        res.status(404);
+        throw new Error('Documento no encontrado en el carrito');
+    }
+
+    userCart.documents.splice(index, 1);
+
+    await userCart.save();
+
+    res.status(200).json(userCart);
+});
+
+const updateCart = asyncHandler(async (req, res) => {
+    const { title, location, type, duration, documentPairs } = req.body;
+
+    let userCart = await DocumentCart.findById(req.params.id);
+
+    // Verificar si el usuario autenticado es el propietario del carrito
+    if (userCart.user.toString() !== req.user.id) {
+        res.status(403);
+        throw new Error('No autorizado');
+    }
+
+    if (!userCart) {
+        res.status(404);
+        throw new Error('Carrito no encontrado');
+    }
+
+    if (title) userCart.title = title;
+    if (location) userCart.location = location;
+    if (type) userCart.type = type;
+    if (duration) userCart.duration = duration;
+
+    if (documentPairs) {
+        userCart.documents = []; // Limpiar los documentos existentes
+
+        for (let pair of documentPairs) {
+            const employee = await Employee.findById(pair.employeeId);
+            if (!employee) {
+                res.status(404);
+                throw new Error('Empleado no encontrado');
+            }
+
+            const document = employee.documents.id(pair.documentId);
+            if (!document) {
+                res.status(404);
+                throw new Error('Documento no encontrado');
+            }
+
+            userCart.documents.push({
+                employee: pair.employeeId,
+                employeeName: employee.name, // Asegúrate de que 'name' es el campo correcto
+                document: document._id,
+                documentTitle: document.title, // Asegúrate de que 'title' es el campo correcto
+                documentFileUrl: document.fileUrl, // Asegúrate de que 'fileUrl' es el campo correcto
+                documentTotalTime: document.totalTime, // Asegúrate de que 'totalTime' es el campo correcto
+            });
+        }
     }
 
     await userCart.save();
@@ -34,57 +170,39 @@ const addDocumentsToCart = asyncHandler(async (req, res) => {
 });
 
 const getAllCarts = asyncHandler(async (req, res) => {
-    const carts = await DocumentCart.find({}).populate('user');
+    // Obtener solo los carritos del usuario autenticado
+    const carts = await DocumentCart.find({ user: req.user.id }).populate('user');
     console.log(carts)
     res.status(200).json(carts);
 });
 
-const updateCart = asyncHandler(async (req, res) => {
-    const { documentPairs } = req.body;
-
-    let userCart = await DocumentCart.findOne({ user: req.user.id });
-    if (!userCart) {
-        res.status(404);
-        throw new Error('Carrito no encontrado');
-    }
-
-    userCart.documents = []; // Limpiar los documentos existentes
-
-    for (let pair of documentPairs) {
-        const employee = await Employee.findById(pair.employeeId);
-        if (!employee) {
-            res.status(404);
-            throw new Error('Empleado no encontrado');
-        }
-
-        const document = employee.documents.id(pair.documentId);
-        if (!document) {
-            res.status(404);
-            throw new Error('Documento no encontrado');
-        }
-
-        // Empuja un objeto que contiene el employeeId y el documentId
-        userCart.documents.push({ employee: pair.employeeId, document: document._id });
-    }
-
-    await userCart.save();
-
-    res.status(200).json(userCart);
-});
 
 const getCartById = asyncHandler(async (req, res) => {
     const cart = await DocumentCart.findById(req.params.id).populate('user').populate('documents.document');
     if (cart) {
+        // Verificar si el usuario autenticado es el propietario del carrito
+        if (cart.user.toString() !== req.user.id) {
+            res.status(403);
+            throw new Error('No autorizado');
+        }
+
         res.json(cart);
     } else {
         res.status(404);
         throw new Error('Carrito no encontrado');
     }
 });
+
 const deleteCart = asyncHandler(async (req, res) => {
     const cart = await DocumentCart.findById(req.params.id);
     if (cart) {
-        await cart.remove();
+        // Verificar si el usuario autenticado es el propietario del carrito
+        if (cart.user.toString() !== req.user.id) {
+            res.status(403);
+            throw new Error('No autorizado');
+        }
+
+        await cart.deleteOne();
         res.json({ message: 'Carrito eliminado' });
     } else {
         res.status(404);
@@ -93,9 +211,11 @@ const deleteCart = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+    createDocumentsCart,
     addDocumentsToCart,
     getAllCarts,
-    updateCart,
     getCartById,
-    deleteCart
+    updateCart,
+    deleteCart,
+    removeDocumentFromCart
 }

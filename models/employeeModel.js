@@ -12,8 +12,8 @@ const documentSchema = new mongoose.Schema({
         required: true,
         trim: true,
     },
-    fileUrl: {
-        type: String,
+    file: { // Nuevo campo para almacenar el archivo PDF
+        type: Buffer,
         required: false,
     },
     startDate: {

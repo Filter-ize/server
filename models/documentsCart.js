@@ -46,8 +46,8 @@ const documentCartSchema = mongoose.Schema({
                 type: String,
                 required: true,
             },
-            documentFileUrl: {
-                type: String,
+            documentFile: {
+                type: Buffer,
                 required: true,
             },
             documentTotalTime: {

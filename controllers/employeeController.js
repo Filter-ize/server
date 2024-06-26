@@ -3,12 +3,48 @@ const Employee = require('../models/employeeModel');
 const { fileSizeFormatter } = require('../utils/fileUpload');
 const cloudinary = require('cloudinary').v2;
 const axios = require('axios');
+const { GridFsStorage } = require('multer-gridfs-storage');
+const multer = require('multer');
+const crypto = require('crypto');
+const path = require('path');
+const mongoose = require('mongoose');
+const Grid = require('gridfs-stream');
+
+let gfs;
+
+const conn = mongoose.connection;
+conn.once('open', () => {
+    gfs = Grid(conn.db, mongoose.mongo);
+    gfs.collection('pdfs');
+});
 
 cloudinary.config({
     cloud_name: 'dlsyupxsl',
     api_key: '662921365278215',
     api_secret: 'pzK--0Yt0QaaHJx6MNWO-Ga0Kyo'
 });
+
+// Crear storage engine
+const storage = new GridFsStorage({
+    url: process.env.MONGO_URI,
+    file: (req, file) => {
+        return new Promise((resolve, reject) => {
+            crypto.randomBytes(16, (err, buf) => {
+                if (err) {
+                    return reject(err);
+                }
+                const filename = buf.toString('hex') + path.extname(file.originalname);
+                const fileInfo = {
+                    filename: filename,
+                    bucketName: 'pdfs'
+                };
+                resolve(fileInfo);
+            });
+        });
+    }
+});
+
+const upload = multer({ storage });
 
 //Create a new employee
 const createEmployee = asyncHandler(async (req, res) => {
@@ -158,114 +194,75 @@ const updateEmployee = asyncHandler(async (req, res) => {
     res.status(200).json(updatedEmployee);
 });
 
-//Add a document to an employee
+// Función addDocument modificada
 const addDocument = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { title, specialty, startDate, endDate } = req.body;
     const employee = await Employee.findById(id);
 
-    // If employee doesn't exist
     if (!employee) {
         res.status(404);
         throw new Error('Empleado no encontrado');
     }
 
-    // Match employee to its user
     if (employee.user.toString() !== req.user.id) {
         res.status(401);
         throw new Error('Usuario no autorizado');
     }
 
-    // Handle Document Upload
     let documentData = {
         title,
         specialty,
-        startDate: new Date(startDate), // No es necesario convertir startDate a Date nuevamente
-        endDate: new Date(endDate), // No es necesario convertir endDate a Date nuevamente
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
     };
 
-    
     if (req.file) {
-        // Save document to cloudinary
-        let uploadedDocument;
-        try {
-            uploadedDocument = await cloudinary.uploader.upload(req.file.path, {
-                folder: 'Filterize app',
-                resource_type: 'raw',
-            });
-            documentData.fileUrl = uploadedDocument.secure_url;
-        } catch (error) {
-            res.status(500);
-            throw new Error('Error al subir el documento');
-        }
+        documentData.file = req.file.buffer;
     }
-    
-    console.log("Document Data:", documentData);
-    // Add document to employee's documents
+
     const newDocument = employee.documents.create(documentData);
     employee.documents.push(newDocument);
 
-    // Save the new document manually
-    await newDocument.save();
-
-    // Save the employee
     await employee.save();
 
     res.status(201).json(employee);
 });
 
-//Update a document of an employee
+// Función updateDocument modificada
 const updateDocument = asyncHandler(async (req, res) => {
     const { employeeId, documentId } = req.params;
     const employee = await Employee.findById(employeeId);
 
-    //If employee doesn't exists
     if (!employee) {
         res.status(404);
         throw new Error('Empleado no encontrado');
     }
-    //Match employee to its user
+
     if (employee.user.toString() !== req.user.id) {
         res.status(401);
         throw new Error('Usuario no autorizado');
     }
 
-    //Find the document
     const document = employee.documents.id(documentId);
     if (!document) {
         res.status(404);
         throw new Error('Documento no encontrado');
     }
 
-    //Handle Document Upload if a new file is provided
-    let documentData = {};
+    const { title, specialty, startDate, endDate } = req.body;
+    if (title) document.title = title;
+    if (specialty) document.specialty = specialty;
+    if (startDate) document.startDate = new Date(startDate);
+    if (endDate) document.endDate = new Date(endDate);
+
     if (req.file) {
-        //Save document to cloudinary
-        let uploadedDocument;
-        try {
-            uploadedDocument = await cloudinary.uploader.upload(req.file.path, {
-                folder: 'Filterize app',
-                resource_type: 'raw', // auto will allow for non-image files
-            });
-            documentData.fileUrl = uploadedDocument.secure_url;
-        } catch (error) {
-            res.status(500);
-            throw new Error('Error al subir el documento');
-        }
+        document.file = req.file.buffer;
     }
 
-     // Extract updated fields from req.body
-     const { title, specialty, startDate, endDate } = req.body;
-     if (title) documentData.title = title;
-     if (specialty) documentData.specialty = specialty;
-     if (startDate) documentData.startDate = new Date(startDate);
-     if (endDate) documentData.endDate = new Date(endDate);
+    await employee.save();
 
- //Update document fields
- document.set(documentData);
- await employee.save();
-
- res.status(200).json(employee);
+    res.status(200).json(employee);
 });
 
 //Delete a document of an employee
@@ -273,25 +270,23 @@ const deleteDocument = asyncHandler(async (req, res) => {
     const { employeeId, documentId } = req.params;
     const employee = await Employee.findById(employeeId);
 
-    //If employee doesn't exists
     if (!employee) {
         res.status(404);
         throw new Error('Empleado no encontrado');
     }
-    //Match employee to its user
+
     if (employee.user.toString() !== req.user.id) {
         res.status(401);
         throw new Error('Usuario no autorizado');
     }
 
-    //Find the document
     const document = employee.documents.id(documentId);
     if (!document) {
         res.status(404);
         throw new Error('Documento no encontrado');
     }
 
-    //Delete document
+    // Eliminar el documento del empleado
     document.deleteOne();
     await employee.save();
 
@@ -317,6 +312,7 @@ const getDocuments = asyncHandler(async (req, res) => {
     //Return the documents
     res.status(200).json(employee.documents);
 });
+
 
 const getDocument = asyncHandler(async (req, res) => {
     const { employeeId, documentId } = req.params;
@@ -344,30 +340,31 @@ const getDocument = asyncHandler(async (req, res) => {
     res.status(200).json(document);
 });
 
+// Función downloadDocument modificada
 const downloadDocument = asyncHandler(async (req, res) => {
     const { employeeId, documentId } = req.params;
     const employee = await Employee.findById(employeeId);
 
-    //If employee doesn't exists
     if (!employee) {
         res.status(404);
         throw new Error('Empleado no encontrado');
     }
-    //Match employee to its user
+
     if (employee.user.toString() !== req.user.id) {
         res.status(401);
         throw new Error('Usuario no autorizado');
     }
-    //Find the document
+
     const document = employee.documents.id(documentId);
-    if (!document) {
+    if (!document || !document.file) {
         res.status(404);
         throw new Error('Documento no encontrado');
     }
 
-    //Redirect to the document URL
-    // res.redirect(document.fileUrl);
-    res.status(200).json(document.fileUrl);
+
+    res.set('Content-Type', 'application/pdf');
+    res.set('Content-Disposition', 'attachment; filename=' + document.title + '.pdf');
+    res.send(document.file);
 });
 
 module.exports = {

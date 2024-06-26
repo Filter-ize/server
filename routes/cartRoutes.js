@@ -8,7 +8,8 @@ const {
     getCartById,
     updateCart,
     deleteCart,
-    removeDocumentFromCart 
+    removeDocumentFromCart ,
+    downloadCartDocuments
 } = require('../controllers/documentCartController.js');
 
 router.route('/').post(protect, createDocumentsCart);
@@ -18,5 +19,6 @@ router.route('/:id').get(protect, getCartById); // Agregar middleware protect
 router.route('/:id/add').put(protect, addDocumentsToCart);
 router.route('/:id').delete(protect, deleteCart);
 router.route('/:id/remove').put(protect, removeDocumentFromCart);
+router.route('/:id/download').get(protect, downloadCartDocuments);
 
 module.exports = router;
